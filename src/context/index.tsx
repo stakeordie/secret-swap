@@ -14,12 +14,7 @@ type SwapAction =
   |
     {
       readonly type: "setContracts";
-      readonly payload: Array<Record<string,any>>;
-    }
-  |
-    {
-      readonly type: "setTokens";
-      readonly payload: Array<TokenInfo>;
+      readonly payload: Array<Contract>;
     }
   |
     {
@@ -36,6 +31,7 @@ type SwapAction =
 
 export type TokenInfo = {
   address:string,
+  balance:string,
   decimals:number,
   symbol:string,
   name:string,
@@ -47,8 +43,7 @@ type SwapDispatch = (action: SwapAction) => void;
 type SwapState = {
   readonly addresses: string[];
   readonly loading: boolean;
-  readonly contracts: Array<Record<string,any>>;
-  readonly tokens: Array<TokenInfo>;
+  readonly contracts: Array<Contract>;
   readonly formValues: FormValues;
 };
 
@@ -72,9 +67,6 @@ function SwapReducer(SwapState: SwapState, action: SwapAction): SwapState {
     case "setContracts": {
       return { ...SwapState, contracts: action.payload };
     }
-    case "setTokens": {
-      return { ...SwapState, tokens: action.payload };
-    }
     case "setFormValues": {
       return { ...SwapState, formValues: action.payload };
     }
@@ -87,10 +79,7 @@ function SwapReducer(SwapState: SwapState, action: SwapAction): SwapState {
 export function setLoading(dispatch: SwapDispatch, loading: boolean): void {
   dispatch({ type: "setLoading", payload: loading });
 }
-export function setTokens(dispatch: SwapDispatch, tokens: Array<TokenInfo>): void {
-  dispatch({ type: "setTokens", payload: tokens });
-}
-export function setContracts(dispatch: SwapDispatch, contracts: Array<Record<string,any>>): void {
+export function setContracts(dispatch: SwapDispatch, contracts: Array<Contract>): void {
   dispatch({ type: "setContracts", payload: contracts });
 }
 export function setFormValues(dispatch: SwapDispatch, formValues:FormValues): void {
@@ -106,6 +95,10 @@ export const useSwap = (): NonNullable<SwapContextType> => {
 
   return context;
 };
+interface Contract {
+  token: TokenInfo,
+  contract: Record<string, any>
+}
 
 export default function SwapProvider({ children }: HTMLAttributes<HTMLOrSVGElement>): JSX.Element {
   const [swapState, swapDispatch] = useReducer(SwapReducer, {
@@ -118,7 +111,6 @@ export default function SwapProvider({ children }: HTMLAttributes<HTMLOrSVGEleme
     //sETH
     'secret1ttg5cn3mv5n9qv8r53stt6cjx8qft8ut9d66ed'],
     contracts: [],
-    tokens:[],
     formValues: {
         selectedFrom:{ },
         selectedTo:{ },
@@ -131,22 +123,14 @@ export default function SwapProvider({ children }: HTMLAttributes<HTMLOrSVGEleme
       (async()=>{
           //Get contract instances
         console.log('Creating contracts base on address')
-        const unsolvedContracts = swapState.addresses.map(async (addr)=> createContract('addr',addr))
-        const contracts = await Promise.all(unsolvedContracts);
-        setContracts(swapDispatch,contracts)
-
-
-
-        //Query contract address to get info
-        console.log('Querying contracts info')
-        const unsolvedTokens = contracts.map(async(contract)=> {
-          const { token_info } = await contract.getTokenInfo()
-          return {...token_info,address:contract.at};
-        });
-        const tokens = await Promise.all(unsolvedTokens);
-        setTokens(swapDispatch,tokens)
-
-        
+        const unsolvedContracts = swapState.addresses.map(async (addr) => {
+          const contract = await createContract('addr',addr);
+          const { token_info } = await contract?.getTokenInfo()
+          const  balance  = await contract?.getBalance()
+          return { token: { ...token_info,address:contract.at, balance, }, contract };
+        })
+        const contracts:Array<Contract> = await Promise.all(unsolvedContracts);
+        setContracts(swapDispatch,contracts)        
       })()
   },[swapState.addresses])
 

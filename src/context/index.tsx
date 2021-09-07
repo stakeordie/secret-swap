@@ -1,4 +1,4 @@
-import  { createContract, createPairContract }  from "../utils";
+import  { createContract, createFactoryContract, createPairContract, getCodeHash }  from "../utils";
 import * as React from "react";
 import { createContext, HTMLAttributes, useContext, useReducer } from "react";
 import { coinConvert } from "@stakeordie/griptape.js";
@@ -173,11 +173,11 @@ interface Contract {
 
 export default function SwapProvider({ children }: HTMLAttributes<HTMLOrSVGElement>): JSX.Element {
   const [swapState, swapDispatch] = useReducer(SwapReducer, {
-    loading: false,
+    loading: true,
     estimatingFromA: true,
     estimatingFromB: false,
     addresses:
-    //SCRT
+    //SCRT  
     ['secret1s7c6xp9wltthk5r6mmavql4xld5me3g37guhsx',
     //SEFI
     'secret12q2c5s5we5zn9pq43l0rlsygtql6646my0sqfm',
@@ -203,7 +203,9 @@ export default function SwapProvider({ children }: HTMLAttributes<HTMLOrSVGEleme
           const { token_info } = await contract?.getTokenInfo()
           const  res  = await contract?.getBalance()
           const balance = coinConvert(res?.balance?.amount,token_info.decimals);
-          return { token: { ...token_info,address:contract.at, balance, }, contract };
+          const token_code_hash = await getCodeHash(contract.at);
+          return { token: { ...token_info,address:contract.at, balance,token_code_hash }, contract };
+          
         })
         const contracts:Array<Contract> = await Promise.all(unsolvedContracts);
         setContracts(swapDispatch,contracts)        
@@ -213,18 +215,19 @@ export default function SwapProvider({ children }: HTMLAttributes<HTMLOrSVGEleme
   React.useEffect(()=>{
     (async () => {
       try {
-        const res = await fetch('https://secretswap-test-backend.azurewebsites.net/secretswap_pairs/?page=0&size=1000');
-        const data = await res.json()
+        const factory = createFactoryContract('factory','secret1ypfxpp4ev2sd9vj9ygmsmfxul25xt9cfadrxxy');
+        const data = await factory.getPairs();
         const pairs: any = {};
         data.pairs.forEach(async(pair: any,i:number):Promise<void> => {
           const contractA = pair.asset_infos[0]?.token?.contract_addr || pair.asset_infos[0]?.native_token?.denom;
           const contractB = pair.asset_infos[1]?.token?.contract_addr || pair.asset_infos[1]?.native_token?.denom;
-          
+
           const contract = await createPairContract(pair.contract_addr,pair.contract_addr);
           
           pairs[`${contractA}-${contractB}`] = {...pair, contract};
         })
         setPairs(swapDispatch,pairs);
+        setLoading(swapDispatch,false)
       } catch (error) {
         console.error(error)
       }

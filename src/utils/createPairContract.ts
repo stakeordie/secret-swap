@@ -1,8 +1,9 @@
-import { createContract,snip20Def,extendContract } from "@stakeordie/griptape.js"
+import { createContract,snip20Def,extendContract, Context } from "@stakeordie/griptape.js"
 const def = {
     queries:{
-        simulate(){
-            return { simulation: { } }
+        simulate(_: Context, contract_addr: string, token_code_hash: string, amount: string){
+            // console.log({ simulation: { offer_asset:{ amount ,info: { token : { contract_addr, token_code_hash, viewing_key:'' }}} } })
+            return { simulation: { offer_asset:{ amount ,info: { token : { contract_addr, token_code_hash, viewing_key:'' }}} } }
         }
     }
 }

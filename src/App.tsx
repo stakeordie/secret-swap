@@ -1,42 +1,37 @@
-import { getChainId, getKeplr, viewingKeyManager } from '@stakeordie/griptape.js';
+import { coinConvert, getChainId, getKeplr, viewingKeyManager } from '@stakeordie/griptape.js';
+import 'semantic-ui-css/semantic.min.css'
 import React, { useEffect } from 'react';
+import { Loader } from 'semantic-ui-react';
 import './App.css';
 import { setEstimatingFromA, setEstimatingFromB, setFormValues, setSelectedPair, updateContract, useSwap } from './context';
 
 function App() {
   const { swapDispatch,swapState } = useSwap();
-  const { contracts,pairs, formValues,estimatingFromA,estimatingFromB } = swapState;
+  const { contracts,pairs, formValues,estimatingFromA,estimatingFromB ,selectedPair,loading} = swapState;
 
   function onSelectChange (e:any,type: 'From' | 'To'): void{
     const contract = contracts.find(({ contract })=> contract.at === e.target.value);
     if(!contract) return;
     if(formValues.selectedFrom.token && formValues.selectedTo.token){
-      const selectedPair = pairs[`${formValues.selectedFrom.token.address}-${formValues.selectedTo.token.address}`] || pairs[`${formValues.selectedTo.token.address}-${formValues.selectedFrom.token.address}`];
-      setSelectedPair(swapDispatch,selectedPair)
+      const selectedPair = pairs[`${formValues.selectedFrom.token.address}-${formValues.selectedTo.token.address}`] 
+                        || pairs[`${formValues.selectedTo.token.address}-${formValues.selectedFrom.token.address}`];
+      if(selectedPair){
+
+        setSelectedPair(swapDispatch,selectedPair)
+      }
     }
     setFormValues(swapDispatch,{ ...formValues, [`selected${type}`]: contract })
   }
 
   async function onSubmit (e:any) {
     e.preventDefault();
-    if(!formValues.from || !formValues.to || !formValues.selectedFrom.contract || !formValues.selectedTo.contract) {
+    if(!formValues.from || !formValues.to || !formValues.selectedFrom.contract || !formValues.selectedTo.contract || !selectedPair) {
       alert('Missing fields');
       return;
     };
     // const balance_from = await formValues.selectedFrom.contract.getBalance();
     // const balance_to = await formValues.selectedTo.contract.getBalance();
   }
-  
-  useEffect(()=>{
-    if(!formValues.selectedFrom.contract || !formValues.selectedTo.contract) return;
-    if(estimatingFromA){
-      console.log('Calculating from A')
-    }else if(estimatingFromB){
-      console.log('Calculating from B')
-    }
-
-  },[estimatingFromA,estimatingFromB,formValues])
-
 
   async function createViewingKey(address:string,contract: Record<string,any>,type:'From' | 'To') {
     try {
@@ -51,6 +46,7 @@ function App() {
       console.error(error)
     }
   }
+
   async function updateContractStore (type:'From' | 'To',address:string){
     try {
       const res = await updateContract(swapDispatch,swapState,address)
@@ -60,8 +56,35 @@ function App() {
     }
   }
 
+  useEffect(()=>{
+    (async()=>{
+      if(!formValues.selectedFrom.contract || !formValues.selectedTo.contract || !selectedPair.contract) return;
+      try {
+        if(estimatingFromA && formValues.from) {
+          const { address, token_code_hash } = formValues.selectedFrom.token;
+          const amount = coinConvert(formValues.from,formValues.selectedFrom.token.decimals,'machine');
+          const res = await selectedPair.contract.simulate(address,token_code_hash,amount);
+          const expected_return = coinConvert(res.return_amount,formValues.selectedFrom.token.decimals,'human');
+          setFormValues(swapDispatch,{...formValues,to:expected_return})
+          
+        }else if(estimatingFromB && formValues.to){
+          //Query reverse
+        }      
+      } catch (error) {
+        
+      }
+    })()
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[formValues.from,formValues.selectedFrom,formValues.selectedTo])
+
   return (
     <div className="App">
+      {
+        (loading) && 
+            <Loader className='center' active size='massive'>Loading</Loader>
+        
+      }
       <h1>Swap</h1>
       <form onSubmit={onSubmit} className='form'> 
 

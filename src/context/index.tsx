@@ -153,7 +153,6 @@ export async function updateContract(dispatch: SwapDispatch,state:SwapState,toke
   })
   const contracts = await Promise.all(unsolved_contracts);
   dispatch({type:'setContracts',payload:contracts})
-  console.log(contractFinal)
   return contractFinal;
 }
 

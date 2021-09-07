@@ -3,7 +3,7 @@ import 'semantic-ui-css/semantic.min.css'
 import React, { useEffect } from 'react';
 import { Loader } from 'semantic-ui-react';
 import './App.css';
-import { setEstimatingFromA, setEstimatingFromB, setFormValues, setSelectedPair, updateContract, useSwap } from './context';
+import { setEstimatingFromA, setEstimatingFromB, setFormValues, setSelectedPair, updateContract, useSwap ,setLoading} from './context';
 
 function App() {
   const { swapDispatch,swapState } = useSwap();
@@ -24,13 +24,32 @@ function App() {
   }
 
   async function onSubmit (e:any) {
+    setLoading(swapDispatch,true)
     e.preventDefault();
     if(!formValues.from || !formValues.to || !formValues.selectedFrom.contract || !formValues.selectedTo.contract || !selectedPair) {
       alert('Missing fields');
       return;
     };
-    // const balance_from = await formValues.selectedFrom.contract.getBalance();
-    // const balance_to = await formValues.selectedTo.contract.getBalance();
+    const amount = coinConvert(formValues.from,formValues.selectedFrom.token.decimals,'machine');
+    const expected_return = coinConvert(formValues.to,formValues.selectedFrom.token.decimals,'machine');
+    const msg = btoa(JSON.stringify({
+      swap:{
+        expected_return
+      }
+    }))
+    try {
+      const res = await formValues.selectedFrom.contract.send(selectedPair.contract.at,amount,msg)
+      if(res){
+        const tokenA = await updateContract(swapDispatch,swapState,formValues.selectedFrom.token.address)
+        const tokenB = await updateContract(swapDispatch,swapState,formValues.selectedTo.token.address)
+        setFormValues(swapDispatch,{...formValues,selectedFrom:tokenA,selectedTo:tokenB})
+      }
+    } catch (error) {
+      console.error(error)
+    }
+    finally{
+      setLoading(swapDispatch,false)
+    }
   }
 
   async function createViewingKey(address:string,contract: Record<string,any>,type:'From' | 'To') {
@@ -64,8 +83,10 @@ function App() {
           const { address, token_code_hash } = formValues.selectedFrom.token;
           const amount = coinConvert(formValues.from,formValues.selectedFrom.token.decimals,'machine');
           const res = await selectedPair.contract.simulate(address,token_code_hash,amount);
-          const expected_return = coinConvert(res.return_amount,formValues.selectedFrom.token.decimals,'human');
-          setFormValues(swapDispatch,{...formValues,to:expected_return})
+          if(res){
+            const expected_return = coinConvert(res.commission_amount,formValues.selectedFrom.token.decimals,'human');
+            setFormValues(swapDispatch,{...formValues,to:expected_return})
+          }
           
         }else if(estimatingFromB && formValues.to){
           //Query reverse

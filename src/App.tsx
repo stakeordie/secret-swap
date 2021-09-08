@@ -20,6 +20,9 @@ import {
   useSwap,
   setLoading,
 } from "./context";
+import { compute_swap } from "./utils";
+import BigNumber from "bignumber.js";
+import { humanizeBalance } from "./utils/computeSwap";
 
 function App() {
   const { swapDispatch, swapState } = useSwap();
@@ -36,22 +39,32 @@ function App() {
     loading,
   } = swapState;
 
-  function onSelectChange(e: any, type: "From" | "To"): void {
+  async function onSelectChange(e: any, type: "From" | "To"): Promise<void> {
     const contract = contracts.find(
       ({ contract }) => contract.at === e.target.value
     );
     if (!contract) return;
-    if (selectedFrom.token && selectedTo.token) {
-      const selectedPair =
-        pairs[`${selectedFrom.token.address}-${selectedTo.token.address}`] ||
-        pairs[`${selectedTo.token.address}-${selectedFrom.token.address}`];
-      if (selectedPair) {
-        setSelectedPair(swapDispatch, selectedPair);
-      }
+    let selectedPair;
+
+    if (type === "From") {
+      setSelectedFrom(swapDispatch, contract);
+      if (!selectedTo.token) return;
+      selectedPair =
+        pairs[`${contract.token.address}-${selectedTo.token.address}`] ||
+        pairs[`${selectedTo.token.address}-${contract.token.address}`];
+    } else if (type === "To") {
+      setSelectedTo(swapDispatch, contract);
+      if (!selectedFrom.token) return;
+      selectedPair =
+        pairs[`${selectedFrom.token.address}-${contract.token.address}`] ||
+        pairs[`${contract.token.address}-${selectedFrom.token.address}`];
     }
-    type === "From"
-      ? setSelectedFrom(swapDispatch, contract)
-      : setSelectedTo(swapDispatch, contract);
+
+    if (selectedPair) {
+      const pool = await selectedPair.contract.getPool();
+      const pair = { ...selectedPair, pool };
+      setSelectedPair(swapDispatch, pair);
+    }
   }
 
   async function onSubmit(e: any) {
@@ -145,23 +158,39 @@ function App() {
         return;
       try {
         if (estimatingFromA && from) {
-          const { address, token_code_hash } = selectedFrom.token;
           const amount = coinConvert(
             from,
             selectedFrom.token.decimals,
             "machine"
           );
-          const res = await selectedPair.contract.simulate(
-            address,
-            token_code_hash,
-            amount
+          const { pool } = selectedPair;
+          const { amount: offer_pool } = pool.assets.find(
+            (e: any) => e.info.token.contract_addr === selectedFrom.contract.at
           );
-          if (res) {
-            const expected_return = coinConvert(
-              res.commission_amount,
-              selectedFrom.token.decimals,
-              "human"
-            );
+          const { amount: ask_pool } = pool.assets.find(
+            (e: any) => e.info.token.contract_addr === selectedTo.contract.at
+          );
+          const offer_pool_final = humanizeBalance(
+            new BigNumber(offer_pool),
+            selectedFrom.token.decimals
+          );
+          const ask_pool_final = humanizeBalance(
+            new BigNumber(ask_pool),
+            selectedTo.token.decimals
+          );
+          const { return_amount, commission_amount } = compute_swap(
+            offer_pool_final,
+            ask_pool_final,
+            new BigNumber(amount)
+          );
+          if (return_amount) {
+            const expected_return = parseFloat(
+              coinConvert(
+                commission_amount.toNumber(),
+                selectedFrom.token.decimals,
+                "human"
+              )
+            ).toFixed(selectedFrom.token.decimals);
             setTo(swapDispatch, expected_return);
           }
         } else if (estimatingFromB && to) {
@@ -173,7 +202,7 @@ function App() {
     from,
     selectedFrom,
     selectedTo,
-    selectedPair.contract,
+    selectedPair,
     swapDispatch,
     to,
     estimatingFromA,

@@ -11,13 +11,13 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;
 }
-.form {
+.swap-form {
   display: flex;
   flex-direction: column;
   max-width: 500px;
   margin: 0 auto;
 }
-.form * {
+.swap-form * {
   margin: 0.5rem 0;
   padding: 1rem;
 }

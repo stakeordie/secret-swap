@@ -6,7 +6,6 @@ import {
 } from "@stakeordie/griptape.js";
 import "semantic-ui-css/semantic.min.css";
 import React, { useEffect } from "react";
-import { Dimmer, Loader } from "semantic-ui-react";
 import "./App.css";
 import {
   setEstimatingFromA,
@@ -20,9 +19,10 @@ import {
   useSwap,
   setLoading,
 } from "./context";
-import { compute_swap } from "./utils";
+import { compute_swap, humanizeBalance } from "./utils";
 import BigNumber from "bignumber.js";
-import { humanizeBalance } from "./utils/computeSwap";
+import { FromToken, Loading, SubmitButton, ToToken } from "./components";
+import { DefaultLayout } from "./layouts";
 
 function App() {
   const { swapDispatch, swapState } = useSwap();
@@ -64,6 +64,8 @@ function App() {
       const pool = await selectedPair.contract.getPool();
       const pair = { ...selectedPair, pool };
       setSelectedPair(swapDispatch, pair);
+    } else {
+      setSelectedPair(swapDispatch, {});
     }
   }
 
@@ -148,6 +150,16 @@ function App() {
     }
   }
 
+  function onInputChange(e: any, type: "From" | "To") {
+    if (type === "From") {
+      setEstimatingFromA(swapDispatch);
+      setFrom(swapDispatch, e.target.value);
+    } else {
+      setEstimatingFromB(swapDispatch);
+      setTo(swapDispatch, e.target.value);
+    }
+  }
+
   useEffect(() => {
     (async () => {
       if (
@@ -210,108 +222,37 @@ function App() {
   ]);
 
   return (
-    <div className="App">
-      {loading && (
-        <Dimmer active>
-          <Loader className="center" size="massive">
-            Loading
-          </Loader>
-        </Dimmer>
-      )}
-      <h1>Swap</h1>
-      <form onSubmit={onSubmit} className="form">
-        <h3> From </h3>
-        <label htmlFor="">
-          {selectedFrom.contract ? (
-            selectedFrom?.token?.balance ? (
-              `Balance: ${selectedFrom?.token?.balance}`
-            ) : (
-              <button
-                type="button"
-                onClick={() =>
-                  createViewingKey(
-                    selectedFrom.token.address,
-                    selectedFrom.contract,
-                    "From"
-                  )
-                }
-              >
-                Create Viewing Key
-              </button>
-            )
-          ) : (
-            "Balance: 0"
-          )}
-        </label>
-        <select name="select-from" onChange={(e) => onSelectChange(e, "From")}>
-          <option value="" />
-          {contracts.map(({ token }, i) => (
-            <option key={`From-${i}`} value={token.address}>
-              {token.name}
-            </option>
-          ))}
-        </select>
-        <input
-          value={from}
-          type="number"
-          placeholder="0"
-          onChange={(e) => {
-            setEstimatingFromA(swapDispatch);
-            setFrom(swapDispatch, e.target.value);
-          }}
-        />
-
-        <h3> To </h3>
-        <label htmlFor="">
-          {selectedTo.contract ? (
-            selectedTo?.token?.balance ? (
-              `Balance: ${selectedTo?.token?.balance}`
-            ) : (
-              <button
-                type="button"
-                onClick={() =>
-                  createViewingKey(
-                    selectedTo.token.address,
-                    selectedTo.contract,
-                    "To"
-                  )
-                }
-              >
-                Create Viewing Key
-              </button>
-            )
-          ) : (
-            "Balance: 0"
-          )}
-        </label>
-        <select name="select-to" onChange={(e) => onSelectChange(e, "To")}>
-          <option value="" />
-          {contracts.map(({ token }, i) => (
-            <option key={`To-${i}`} value={token.address}>
-              {token.name}
-            </option>
-          ))}
-        </select>
-        <input
-          value={to}
-          type="number"
-          placeholder="0"
-          onChange={(e) => {
-            setEstimatingFromB(swapDispatch);
-            setTo(swapDispatch, e.target.value);
-          }}
-        />
-
-        <button
-          type="submit"
-          disabled={
-            !from || !to || !selectedFrom.contract || !selectedTo.contract
-          }
-        >
-          Swap
-        </button>
-      </form>
-    </div>
+    <>
+      <Loading loading={loading} />
+      <DefaultLayout>
+        <h1>Swap</h1>
+        <form onSubmit={onSubmit} className="swap-form">
+          <FromToken
+            from={from}
+            contracts={contracts}
+            selectedFrom={selectedFrom}
+            createViewingKey={createViewingKey}
+            onSelectChange={onSelectChange}
+            onInputChange={onInputChange}
+          />
+          <ToToken
+            to={to}
+            contracts={contracts}
+            selectedTo={selectedTo}
+            createViewingKey={createViewingKey}
+            onSelectChange={onSelectChange}
+            onInputChange={onInputChange}
+          />
+          <SubmitButton
+            from={from}
+            to={to}
+            selectedFrom={selectedFrom}
+            selectedTo={selectedTo}
+            selectedPair={selectedPair}
+          />
+        </form>
+      </DefaultLayout>
+    </>
   );
 }
 
